@@ -30,7 +30,7 @@ st.title("👨‍👩‍👧‍👦 우리 동네 인구 피라미드")
 st.caption("전국 읍·면·동의 최신 연도 성별·연령별 인구 구조를 확인해 보세요.")
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 불러오기 함수 (Git LFS Pointer 처리 대응)
+# 2. 데이터 불러오기 함수 (Git LFS Pointer 대응)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
@@ -40,28 +40,24 @@ def load_data():
     res = requests.get(raw_url, headers=headers)
     content = res.content
     
-    # Git LFS 포인터 파일인지 확인 (version https://git-lfs... 문구 포함 여부)
+    # Git LFS 포인터 파일인 경우 실제 데이터 다운로드 처리
     if b'version https://git-lfs.github.com' in content:
-        # LFS OID 추출 후 Media CDN 링크로 실제 바이너리 파일 다운로드
         text_content = content.decode('utf-8', errors='ignore')
         oid_match = re.search(r'oid sha256:([a-f0-9]+)', text_content)
         if oid_match:
             oid = oid_match.group(1)
-            media_url = f"https://media.githubusercontent.com/media/kdoyun09/population/main/population_ts_yearly_gender.zip"
+            media_url = "https://media.githubusercontent.com/media/kdoyun09/population/main/population_ts_yearly_gender.zip"
             lfs_res = requests.get(media_url, headers=headers)
             if lfs_res.status_code == 200 and lfs_res.content.startswith(b'PK'):
                 content = lfs_res.content
             else:
-                # OID 세부 경로 직접 우회
                 lfs_download_url = f"https://github-cloud.s3.amazonaws.com/{oid}"
                 lfs_res2 = requests.get(lfs_download_url, headers=headers)
                 if lfs_res2.status_code == 200:
                     content = lfs_res2.content
 
-    # BytesIO 스트림을 판다스로 로드
     df = pd.read_csv(io.BytesIO(content), compression='zip')
     
-    # 가장 최신 연도 데이터만 추출
     max_year = df['연도'].max()
     latest_df = df[df['연도'] == max_year].copy()
     
@@ -132,15 +128,36 @@ fig = go.Figure()
 fig.add_trace(go.Bar(
     y=age_categories,
     x=male_pop,
-    name='남성',
-    orientation='h',
-    marker=dict(color='#6c8ea4'),
-    hovertemplate='<b>%{y}</b> 남성 인구: %{customdata:,}명<extra></extra>',
+    name="남성",
+    orientation="h",
+    marker=dict(color="#6c8ea4"),
+    hovertemplate="<b>%{y}</b> 남성 인구: %{customdata:,}명<extra></extra>",
     customdata=[-val for val in male_pop]
 ))
 
 fig.add_trace(go.Bar(
     y=age_categories,
     x=female_pop,
-    name='여성',
-    orientation='
+    name="여성",
+    orientation="h",
+    marker=dict(color="#e0896d"),
+    hovertemplate="<b>%{y}</b> 여성 인구: %{x:,}명<extra></extra>"
+))
+
+max_val = max(max(abs(x) for x in male_pop), max(female_pop))
+x_bound = max_val * 1.1 if max_val > 0 else 100
+
+fig.update_layout(
+    title=dict(
+        text=f"<b>[{selected_sido} {selected_sigungu} {selected_dong}]</b> 인구 피라미드 ({latest_year}년)",
+        font=dict(size=20, color="#4a3b32")
+    ),
+    barmode="relative",
+    bargap=0.1,
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(245,243,238,0.5)",
+    legend=dict(x=0.85, y=1.1, orientation="h", font=dict(size=13, color="#4a3b32")),
+    xaxis=dict(
+        title="인구수 (명)",
+        range=[-x_bound, x_bound],
+        tickvals=[-int(x_bound*0.8), -int(x_bound*0.4), 0, int
