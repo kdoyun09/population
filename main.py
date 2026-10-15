@@ -5,7 +5,7 @@ import urllib.request
 import io
 
 # -----------------------------------------------------------------------------
-# 1. 페이지 기본 설정 및 스타일 정의 (따뜻한 톤앤매너)
+# 1. 페이지 기본 설정 및 스타일 정의
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="동네별 인구 피라미드",
@@ -29,19 +29,19 @@ st.title("👨‍👩‍👧‍👦 우리 동네 인구 피라미드")
 st.caption("전국 읍·면·동의 최신 연도 성별·연령별 인구 구조를 확인해 보세요.")
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 불러오기 함수 (ZIP 바이너리 다운로드 방식 적용)
+# 2. 데이터 불러오기 함수 (Raw URL + User-Agent 헤더 적용)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
-    # GitHub Media Raw 직접 다운로드 URL
-    url = "https://media.githubusercontent.com/media/kdoyun09/population/main/population_ts_yearly_gender.zip"
+    # GitHub Raw 표준 URL
+    url = "https://raw.githubusercontent.com/kdoyun09/population/main/population_ts_yearly_gender.zip"
     
-    # User-Agent 설정하여 zip 파일 바이너리 데이터 다운로드
+    # 봇 차단 방지용 User-Agent 헤더 추가하여 바이너리 다운로드
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     with urllib.request.urlopen(req) as response:
         zip_data = response.read()
     
-    # 메모리 스트림으로 판다스에서 읽기
+    # BytesIO 메모리 스트림을 통해 판다스로 읽기
     df = pd.read_csv(io.BytesIO(zip_data), compression='zip')
     
     # 가장 최신 연도 데이터만 추출
