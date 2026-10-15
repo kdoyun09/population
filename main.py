@@ -6,7 +6,7 @@ import io
 import re
 
 # -----------------------------------------------------------------------------
-# 1. 페이지 기본 설정 및 스타일 정의
+# 1. 페이지 기본 설정 및 스타일 정의 (따뜻한 톤앤매너)
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="동네별 인구 피라미드",
@@ -30,25 +30,25 @@ st.title("👨‍👩‍👧‍👦 우리 동네 인구 피라미드")
 st.caption("전국 읍·면·동의 최신 연도 성별·연령별 인구 구조를 확인해 보세요.")
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 불러오기 함수 (Git LFS Pointer 대응)
+# 2. 데이터 불러오기 함수 (Git LFS Pointer 및 ZIP 압축 해제 안전 처리)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
     raw_url = "https://raw.githubusercontent.com/kdoyun09/population/main/population_ts_yearly_gender.zip"
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {"User-Agent": "Mozilla/5.0"}
     
     res = requests.get(raw_url, headers=headers)
     content = res.content
     
-    # Git LFS 포인터 파일인 경우 실제 데이터 다운로드 처리
-    if b'version https://git-lfs.github.com' in content:
-        text_content = content.decode('utf-8', errors='ignore')
-        oid_match = re.search(r'oid sha256:([a-f0-9]+)', text_content)
+    # Git LFS 포인터 파일인 경우 실제 파일 데이터를 가져옵니다.
+    if b"version https://git-lfs.github.com" in content:
+        text_content = content.decode("utf-8", errors="ignore")
+        oid_match = re.search(r"oid sha256:([a-f0-9]+)", text_content)
         if oid_match:
             oid = oid_match.group(1)
             media_url = "https://media.githubusercontent.com/media/kdoyun09/population/main/population_ts_yearly_gender.zip"
             lfs_res = requests.get(media_url, headers=headers)
-            if lfs_res.status_code == 200 and lfs_res.content.startswith(b'PK'):
+            if lfs_res.status_code == 200 and lfs_res.content.startswith(b"PK"):
                 content = lfs_res.content
             else:
                 lfs_download_url = f"https://github-cloud.s3.amazonaws.com/{oid}"
@@ -56,10 +56,12 @@ def load_data():
                 if lfs_res2.status_code == 200:
                     content = lfs_res2.content
 
-    df = pd.read_csv(io.BytesIO(content), compression='zip')
+    # 메모리 스트림을 이용하여 csv 로드
+    df = pd.read_csv(io.BytesIO(content), compression="zip")
     
-    max_year = df['연도'].max()
-    latest_df = df[df['연도'] == max_year].copy()
+    # 가장 최신 연도 데이터만 추출
+    max_year = int(df["연도"].max())
+    latest_df = df[df["연도"] == max_year].copy()
     
     return latest_df, max_year
 
@@ -78,22 +80,22 @@ st.subheader("📍 지역 선택")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    sido_list = sorted(df_latest['시도'].dropna().unique())
+    sido_list = sorted(df_latest["시도"].dropna().unique())
     selected_sido = st.selectbox("시·도 선택", sido_list)
 
-sigungu_filtered = df_latest[df_latest['시도'] == selected_sido]
-sigungu_list = sorted(sigungu_filtered['시군구'].dropna().unique())
+sigungu_filtered = df_latest[df_latest["시도"] == selected_sido]
+sigungu_list = sorted(sigungu_filtered["시군구"].dropna().unique())
 
 with col2:
     selected_sigungu = st.selectbox("시·군·구 선택", sigungu_list)
 
-dong_filtered = sigungu_filtered[sigungu_filtered['시군구'] == selected_sigungu]
-dong_list = sorted(dong_filtered['동'].dropna().unique())
+dong_filtered = sigungu_filtered[sigungu_filtered["시군구"] == selected_sigungu]
+dong_list = sorted(dong_filtered["동"].dropna().unique())
 
 with col3:
     selected_dong = st.selectbox("읍·면·동 선택", dong_list)
 
-target_row = dong_filtered[dong_filtered['동'] == selected_dong]
+target_row = dong_filtered[dong_filtered["동"] == selected_dong]
 
 if target_row.empty:
     st.warning("선택한 지역의 데이터가 없습니다.")
@@ -102,62 +104,10 @@ if target_row.empty:
 target_data = target_row.iloc[0]
 
 # -----------------------------------------------------------------------------
-# 4. 나이 순서 정의 및 남/여 인구 데이터 정리
+# 4. 나이 순서 정의 (0세부터 100세 이상까지) 및 남/여 인구 정리
 # -----------------------------------------------------------------------------
 age_categories = [f"{i}세" for i in range(101)]
 age_categories[-1] = "100세 이상"
 
 male_pop = []
-female_pop = []
-
-for age in age_categories:
-    m_col = f"남_{age}"
-    f_col = f"여_{age}"
-    
-    m_val = target_data[m_col] if m_col in target_data else 0
-    f_val = target_data[f_col] if f_col in target_data else 0
-    
-    male_pop.append(-m_val)
-    female_pop.append(f_val)
-
-# -----------------------------------------------------------------------------
-# 5. Plotly 인구 피라미드 가로 막대 그래프 그리기
-# -----------------------------------------------------------------------------
-fig = go.Figure()
-
-fig.add_trace(go.Bar(
-    y=age_categories,
-    x=male_pop,
-    name="남성",
-    orientation="h",
-    marker=dict(color="#6c8ea4"),
-    hovertemplate="<b>%{y}</b> 남성 인구: %{customdata:,}명<extra></extra>",
-    customdata=[-val for val in male_pop]
-))
-
-fig.add_trace(go.Bar(
-    y=age_categories,
-    x=female_pop,
-    name="여성",
-    orientation="h",
-    marker=dict(color="#e0896d"),
-    hovertemplate="<b>%{y}</b> 여성 인구: %{x:,}명<extra></extra>"
-))
-
-max_val = max(max(abs(x) for x in male_pop), max(female_pop))
-x_bound = max_val * 1.1 if max_val > 0 else 100
-
-fig.update_layout(
-    title=dict(
-        text=f"<b>[{selected_sido} {selected_sigungu} {selected_dong}]</b> 인구 피라미드 ({latest_year}년)",
-        font=dict(size=20, color="#4a3b32")
-    ),
-    barmode="relative",
-    bargap=0.1,
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(245,243,238,0.5)",
-    legend=dict(x=0.85, y=1.1, orientation="h", font=dict(size=13, color="#4a3b32")),
-    xaxis=dict(
-        title="인구수 (명)",
-        range=[-x_bound, x_bound],
-        tickvals=[-int(x_bound*0.8), -int(x_bound*0.4), 0, int
+female_pop
