@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import urllib.request
+import io
 
 # -----------------------------------------------------------------------------
 # 1. 페이지 기본 설정 및 스타일 정의 (따뜻한 톤앤매너)
@@ -27,13 +29,20 @@ st.title("👨‍👩‍👧‍👦 우리 동네 인구 피라미드")
 st.caption("전국 읍·면·동의 최신 연도 성별·연령별 인구 구조를 확인해 보세요.")
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 불러오기 함수 (Git LFS 대응 URL 수정)
+# 2. 데이터 불러오기 함수 (ZIP 바이너리 다운로드 방식 적용)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
-    # Git LFS 대응 raw=true 매개변수 추가
-    url = "https://github.com/kdoyun09/population/raw/main/population_ts_yearly_gender.zip?raw=true"
-    df = pd.read_csv(url, compression='zip')
+    # GitHub Media Raw 직접 다운로드 URL
+    url = "https://media.githubusercontent.com/media/kdoyun09/population/main/population_ts_yearly_gender.zip"
+    
+    # User-Agent 설정하여 zip 파일 바이너리 데이터 다운로드
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    with urllib.request.urlopen(req) as response:
+        zip_data = response.read()
+    
+    # 메모리 스트림으로 판다스에서 읽기
+    df = pd.read_csv(io.BytesIO(zip_data), compression='zip')
     
     # 가장 최신 연도 데이터만 추출
     max_year = df['연도'].max()
