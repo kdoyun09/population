@@ -161,4 +161,67 @@ fig.add_trace(go.Bar(
     hovertemplate='<b>%{y}</b> 여성 인구: %{x:,}명<extra></extra>'
 ))
 
-max_val
+max_val = max(max(abs(x) for x in male_pop), max(female_pop))
+x_bound = max_val * 1.1 if max_val > 0 else 100.0
+
+fig.update_layout(
+    title=dict(
+        text=f"<b>[{selected_sido} {selected_sigungu} {selected_dong}]</b> 인구 피라미드 ({latest_year}년)",
+        font=dict(size=20, color="#4a3b32")
+    ),
+    barmode='relative',
+    bargap=0.1,
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(245,243,238,0.5)',
+    legend=dict(
+        x=0.85, y=1.1,
+        orientation="h",
+        font=dict(size=13, color="#4a3b32")
+    ),
+    xaxis=dict(
+        title="인구수 (명)",
+        range=[-x_bound, x_bound],
+        tickvals=[
+            -int(x_bound * 0.8),
+            -int(x_bound * 0.4),
+            0,
+            int(x_bound * 0.4),
+            int(x_bound * 0.8)
+        ],
+        ticktext=[
+            f"{abs(int(x_bound * 0.8)):,}",
+            f"{abs(int(x_bound * 0.4)):,}",
+            "0",
+            f"{int(x_bound * 0.4):,}",
+            f"{int(x_bound * 0.8):,}"
+        ],
+        gridcolor='#e0dcd3'
+    ),
+    # 세로축 고정: 0세가 맨 아래, 100세 이상이 맨 위로
+    yaxis=dict(
+        title="연령",
+        type='category',
+        categoryorder='array',
+        categoryarray=age_categories,
+        dtick=10,
+        gridcolor='#e0dcd3'
+    ),
+    height=700,
+    margin=dict(l=60, r=60, t=80, b=50)
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# -----------------------------------------------------------------------------
+# 7. 피라미드 하단 자동 한 줄 설명
+# -----------------------------------------------------------------------------
+st.markdown("### 💡 우리 동네 인구 특성 한 줄 요약")
+
+if aging_rate >= 20.0:
+    desc = f"👵 **어르신 비중이 높은 동네입니다.** (고령화율 {aging_rate:.1f}%, 유소년 비율 {youth_rate:.1f}%)"
+elif youth_rate > aging_rate:
+    desc = f"👶 **아이가 상대적으로 많은 젊은 동네입니다.** (유소년 비율 {youth_rate:.1f}%, 고령화율 {aging_rate:.1f}%)"
+else:
+    desc = f"⚖️ **다양한 연령층이 균형 있게 어우러진 동네입니다.** (평균연령 {avg_age:.1f}세)"
+
+st.info(desc)
